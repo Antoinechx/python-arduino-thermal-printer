@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Test Ticket Imprimante</title>
+</head>
+<body>
+
+<h1>Envoyer un ticket à l'imprimante</h1>
+
+<button id="connect">Connecter à l'Arduino</button><br><br>
+<textarea id="ticket" rows="10" cols="40">
+Projet Test
+05 Nov 25 14h30
+----------------
+Section 1
+[ ] Tache 1.1
+[ ] Tache 1.2
+[ ] Tache 1.3
+----------------
+Section 2
+[ ] Tache 2.1
+[ ] Tache 2.2
+[ ] Tache 2.3
+----------------
+Commentaire: Ceci est un commentaire
+</textarea><br>
+<button id="send">Envoyer le ticket</button>
+
+<pre id="output"></pre>
+
+<script>
+let port;
+let writer;
+let reader;
+
+document.getElementById('connect').addEventListener('click', async () => {
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+
+        document.getElementById('output').textContent += "Connecté à l’Arduino !\n";
+
+        // Lire les messages venant d'Arduino
+        (async function readLoop() {
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                const text = new TextDecoder().decode(value);
+                document.getElementById('output').textContent += text;
+            }
+        })();
+    } catch(err) {
+        alert('Erreur de connexion: ' + err);
+    }
+});
+
+document.getElementById('send').addEventListener('click', async () => {
+    if (!writer) { alert('Connectez-vous d’abord !'); return; }
+
+    const ticketText = document.getElementById('ticket').value;
+    const lines = ticketText.split('\n');
+
+    for (let line of lines) {
+        const data = new TextEncoder().encode(line + '\n');
+        await writer.write(data);
+    }
+
+    document.getElementById('output').textContent += "Ticket envoyé !\n";
+});
+</script>
+
+</body>
+</html>

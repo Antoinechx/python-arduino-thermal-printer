@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Créateur de Ticket Dynamique</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+label { display: block; margin-top: 10px; }
+input { width: 300px; margin-bottom: 5px; }
+button { margin: 5px; padding: 5px 10px; }
+.section { border: 1px solid #aaa; padding: 5px; margin-top: 10px; }
+.tache { margin-left: 20px; display: block; margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Créateur de Ticket Dynamique</h1>
+
+<button id="connect">Connecter à l'Arduino</button>
+
+<label>Nom du projet:</label>
+<input type="text" id="projet" value="Projet Test">
+
+<div id="sections-container"></div>
+
+<button id="add-section">Ajouter une section</button>
+
+<label>Commentaire:</label>
+<input type="text" id="commentaire" value="Ceci est un commentaire">
+
+<label>Importance:</label>
+<select id="importance">
+    <option value="Normal">Normal</option>
+    <option value="Important">Important</option>
+    <option value="Urgent">Urgent</option>
+</select>
+
+<button id="send">Envoyer le ticket</button>
+
+<script>
+let port;
+let writer;
+
+// Connexion serial
+document.getElementById('connect').addEventListener('click', async () => {
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        writer = port.writable.getWriter();
+        alert('Connecté à l’Arduino !');
+    } catch(err) {
+        alert('Erreur de connexion: ' + err);
+    }
+});
+
+// Gestion dynamique des sections et tâches
+const sectionsContainer = document.getElementById('sections-container');
+
+function addSection(name = "Section") {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'section';
+
+    const sectionLabel = document.createElement('label');
+    sectionLabel.textContent = 'Nom de la section:';
+    sectionDiv.appendChild(sectionLabel);
+
+    const sectionInput = document.createElement('input');
+    sectionInput.type = 'text';
+    sectionInput.value = name;
+    sectionDiv.appendChild(sectionInput);
+
+    const tachesDiv = document.createElement('div');
+    tachesDiv.className = 'taches-container';
+    sectionDiv.appendChild(tachesDiv);
+
+    const addTaskBtn = document.createElement('button');
+    addTaskBtn.textContent = 'Ajouter une tâche';
+    addTaskBtn.onclick = () => addTask(tachesDiv);
+    sectionDiv.appendChild(addTaskBtn);
+
+    const removeSectionBtn = document.createElement('button');
+    removeSectionBtn.textContent = 'Supprimer cette section';
+    removeSectionBtn.onclick = () => sectionDiv.remove();
+    sectionDiv.appendChild(removeSectionBtn);
+
+    sectionsContainer.appendChild(sectionDiv);
+}
+
+function addTask(tachesDiv, value = "") {
+    const taskInput = document.createElement('input');
+    taskInput.type = 'text';
+    taskInput.className = 'tache';
+    taskInput.value = value;
+    tachesDiv.appendChild(taskInput);
+}
+
+// Boutons
+document.getElementById('add-section').addEventListener('click', () => addSection());
+
+// Centrage texte
+function centerText(text, width=32) {
+    let padding = Math.floor((width - text.length)/2);
+    if (padding < 0) padding = 0;
+    return ' '.repeat(padding) + text;
+}
+
+// Envoi vers l'Arduino
+document.getElementById('send').addEventListener('click', async () => {
+    if (!writer) { alert('Connectez-vous d’abord !'); return; }
+
+    let lines = [];
+    const projet = document.getElementById('projet').value;
+    const now = new Date();
+    const commentaire = document.getElementById('commentaire').value;
+    const importance = document.getElementById('importance').value;
+    const icons = { "Normal":"●", "Important":"⚠", "Urgent":"✖" };
+
+    lines.push(centerText(projet));
+    lines.push(centerText(now.toLocaleString()));
+    lines.push('-'.repeat(32));
+
+    // Parcourir toutes les sections
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(sec => {
+        const secName = sec.querySelector('input[type=text]').value;
+        lines.push(centerText(secName));
+
+        const tasks = sec.querySelectorAll('.taches-container input');
+        tasks.forEach(t => {
+            if(t.value.trim() !== '') lines.push('[ ] ' + t.value);
+        });
+
+        lines.push('-'.repeat(32));
+    });
+
+    lines.push(centerText('Commentaire: ' + commentaire));
+    lines.push('-'.repeat(32));
+    lines.push(''); // ligne blanche finale
+    lines.push(centerText(icons[importance] || ''));
+
+    // Envoi vers Arduino
+    for (let line of lines) {
+        const data = new TextEncoder().encode(line + '\n');
+        await writer.write(data);
+    }
+
+    alert('Ticket envoyé !');
+});
+
+// Section par défaut
+addSection();
+</script>
+
+</body>
+</html>
